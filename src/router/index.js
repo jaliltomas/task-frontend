@@ -38,6 +38,12 @@ const routes = [
     meta: { title: 'Integraciones' }
   },
   {
+    path: '/crm',
+    name: 'CRM',
+    component: () => import('../views/CRM.vue'),
+    meta: { title: 'CRM' }
+  },
+  {
     path: '/configuration',
     name: 'Configuration',
     component: () => import('../views/Configuration.vue'),
