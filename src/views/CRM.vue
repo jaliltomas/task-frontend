@@ -10,9 +10,14 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
             </svg>
           </button>
-          <button @click="refreshChats" class="refresh-btn" :disabled="loading">
+          <button @click="refreshChats" class="refresh-btn" :disabled="loading" title="Actualizar conversaciones">
             <svg class="w-5 h-5" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+          <button @click="clearRecentMessages" class="clear-btn" :disabled="loading || chats.length === 0" title="Limpiar mensajes recientes">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </button>
         </div>
@@ -32,7 +37,18 @@
       </div>
       
       <div class="chat-items">
-        <div v-if="loading && chats.length === 0" class="loading-state">
+        <!-- WhatsApp Not Connected Warning -->
+        <div v-if="!isWhatsAppConnected" class="disconnected-state">
+          <div class="disconnected-icon">
+            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+          <p class="disconnected-title">WhatsApp no conectado</p>
+          <span class="text-sm text-slate-400">Conecta WhatsApp en Integraciones para ver las conversaciones</span>
+        </div>
+        
+        <div v-else-if="loading && chats.length === 0" class="loading-state">
           <div class="spinner"></div>
           <p>Cargando conversaciones...</p>
         </div>
@@ -49,6 +65,7 @@
         </div>
         
         <div
+        v-if="isWhatsAppConnected"
           v-for="chat in filteredChats"
           :key="chat.id"
           class="chat-item"
@@ -144,7 +161,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
@@ -159,6 +176,14 @@ const loadingMessages = ref(false)
 const sending = ref(false)
 const syncing = ref(false)
 const messagesContainer = ref(null)
+const whatsappStatus = ref('INITIALIZING')
+const manuallyCleared = ref(false)
+let eventSource = null
+
+// WhatsApp connection state
+const isWhatsAppConnected = computed(() => 
+  whatsappStatus.value === 'CONNECTED' || whatsappStatus.value === 'inChat'
+)
 
 // Filtered chats based on search
 const filteredChats = computed(() => {
@@ -189,11 +214,21 @@ async function fetchChats() {
 
 // Refresh chats
 function refreshChats() {
+  manuallyCleared.value = false
   fetchChats()
+}
+
+// Clear recent messages
+function clearRecentMessages() {
+  chats.value = []
+  messages.value = []
+  selectedChat.value = null
+  manuallyCleared.value = true
 }
 
 // Sync chats from WhatsApp
 async function syncChats() {
+  manuallyCleared.value = false
   syncing.value = true
   try {
     const response = await fetch(`${API_URL}/crm/sync`, { method: 'POST' })
@@ -338,23 +373,75 @@ function formatMessageTime(dateString) {
   return date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
 }
 
+// Connect to WhatsApp status SSE
+function connectWhatsAppSSE() {
+  eventSource = new EventSource(`${API_URL}/whatsapp/qr-stream`)
+  
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      
+      if (data.status) {
+        const wasConnected = isWhatsAppConnected.value
+        whatsappStatus.value = data.status
+        
+        // If just connected, sync chats
+        if (!wasConnected && isWhatsAppConnected.value) {
+          console.log('WhatsApp reconnected, syncing chats...')
+          syncChats()
+        }
+        
+        // If disconnected, clear local data
+        if (wasConnected && !isWhatsAppConnected.value) {
+          console.log('WhatsApp disconnected, clearing local data...')
+          chats.value = []
+          messages.value = []
+          selectedChat.value = null
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing SSE data:', e)
+    }
+  }
+  
+  eventSource.onerror = () => {
+    console.error('SSE connection error')
+  }
+}
+
 // Auto-refresh every 30 seconds
 let refreshInterval
 onMounted(async () => {
+  // Connect to WhatsApp status
+  connectWhatsAppSSE()
+  
   // First sync from WhatsApp if no chats exist
   await fetchChats()
-  if (chats.value.length === 0) {
+  if (chats.value.length === 0 && isWhatsAppConnected.value) {
     await syncChats()
   }
-  refreshInterval = setInterval(fetchChats, 30000)
+  refreshInterval = setInterval(() => {
+    if (isWhatsAppConnected.value && !manuallyCleared.value) {
+      fetchChats()
+    }
+  }, 30000)
+})
+
+onUnmounted(() => {
+  if (eventSource) {
+    eventSource.close()
+  }
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
 })
 
 // Watch for selected chat changes to refresh messages
 watch(selectedChat, (newChat) => {
-  if (newChat) {
+  if (newChat && isWhatsAppConnected.value) {
     // Set up message refresh for selected chat
     const messageRefresh = setInterval(() => {
-      if (selectedChat.value?.id === newChat.id) {
+      if (selectedChat.value?.id === newChat.id && isWhatsAppConnected.value) {
         fetchMessages(newChat.id)
       } else {
         clearInterval(messageRefresh)
@@ -507,13 +594,34 @@ watch(selectedChat, (newChat) => {
   cursor: not-allowed;
 }
 
+.clear-btn {
+  padding: 0.5rem;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+}
+
+.clear-btn:hover:not(:disabled) {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+.clear-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .chat-items {
   flex: 1;
   overflow-y: auto;
 }
 
 .loading-state,
-.empty-state {
+.empty-state,
+.disconnected-state {
   display: flex;
   flex-direction: column;
   align-items: center;

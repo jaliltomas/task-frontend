@@ -60,12 +60,20 @@
           <h2 class="text-lg font-semibold text-slate-800">Mensajes Recientes</h2>
           <p class="text-sm text-slate-500">Últimos mensajes procesados de WhatsApp</p>
         </div>
+        <div>
         <button @click="refreshData" class="btn-secondary">
           <svg class="w-4 h-4" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           Actualizar
         </button>
+        <button @click="clearMessages" class="btn-secondary ml-2 hover:bg-red-50 hover:text-red-600 transition-colors" :disabled="loading || messages.length === 0" title="Limpiar lista">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Limpiar
+        </button>
+        </div>
       </div>
       
       <div class="p-6">
@@ -125,6 +133,20 @@ async function fetchData() {
 
 async function refreshData() {
   await fetchData()
+}
+
+async function clearMessages() {
+  if (!confirm('¿Estás seguro de limpiar todos los mensajes recientes?')) return
+
+  loading.value = true
+  try {
+    await messagesApi.clearRecent()
+    messages.value = []
+  } catch (error) {
+    console.error('Error clearing messages:', error)
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(() => {

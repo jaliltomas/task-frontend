@@ -50,6 +50,7 @@ export const productsApi = {
 export const messagesApi = {
   list: (params = {}) => api.get('/messages', { params }),
   getRecent: (limit = 20) => api.get('/messages/recent', { params: { limit } }),
+  clearRecent: () => api.post('/messages/recent/clear'),
   get: (id) => api.get(`/messages/${id}`),
   delete: (id) => api.delete(`/messages/${id}`),
   getStats: () => api.get('/messages/stats/summary')
