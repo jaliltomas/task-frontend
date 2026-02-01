@@ -125,8 +125,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://34.72.106.241:8000/api'
+import { API_URL } from '@/config/api.js'
 
 const status = ref('INITIALIZING')
 const qrCode = ref(null)

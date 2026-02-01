@@ -161,8 +161,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://34.72.106.241:8000/api'
+import { API_URL } from '@/config/api.js'
 
 // State
 const chats = ref([])
@@ -245,30 +244,52 @@ async function syncChats() {
 // Select a chat
 async function selectChat(chat) {
   selectedChat.value = chat
+  loadingMessages.value = true
   
-  // First try to fetch messages from DB
-  await fetchMessages(chat.id)
-  
-  // If no messages, try to sync from WhatsApp
-  if (messages.value.length === 0) {
-    try {
-      console.log('No messages in DB, syncing from WhatsApp...')
-      await fetch(`${API_URL}/crm/chats/${chat.id}/sync-messages`, { method: 'POST' })
-      // Fetch again after sync
-      await fetchMessages(chat.id)
-    } catch (error) {
-      console.error('Error syncing messages:', error)
+  try {
+    // First try to fetch messages from DB
+    await fetchMessagesQuiet(chat.id)
+    
+    // Always try to sync more messages from WhatsApp if connected
+    if (isWhatsAppConnected.value) {
+      try {
+        console.log('Syncing messages from WhatsApp...')
+        const syncResponse = await fetch(`${API_URL}/crm/chats/${chat.id}/sync-messages`, { method: 'POST' })
+        const syncResult = await syncResponse.json()
+        console.log('Sync result:', syncResult)
+        
+        // Fetch again after sync to get any new messages
+        if (syncResult.synced > 0) {
+          await fetchMessagesQuiet(chat.id)
+        }
+      } catch (error) {
+        console.error('Error syncing messages:', error)
+      }
     }
+    
+    // Mark as read
+    if (chat.unreadCount > 0) {
+      try {
+        await fetch(`${API_URL}/crm/chats/${chat.id}/read`, { method: 'POST' })
+        chat.unreadCount = 0
+      } catch (error) {
+        console.error('Error marking chat as read:', error)
+      }
+    }
+  } finally {
+    loadingMessages.value = false
+    scrollToBottom()
   }
-  
-  // Mark as read
-  if (chat.unreadCount > 0) {
-    try {
-      await fetch(`${API_URL}/crm/chats/${chat.id}/read`, { method: 'POST' })
-      chat.unreadCount = 0
-    } catch (error) {
-      console.error('Error marking chat as read:', error)
-    }
+}
+
+// Fetch messages without setting loading state (for internal use)
+async function fetchMessagesQuiet(chatId) {
+  try {
+    const response = await fetch(`${API_URL}/crm/chats/${chatId}/messages`)
+    const data = await response.json()
+    messages.value = data.items || []
+  } catch (error) {
+    console.error('Error fetching messages:', error)
   }
 }
 

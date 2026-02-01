@@ -157,8 +157,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+import { API_URL } from '@/config/api.js'
 
 const loading = ref(false)
 const currentList = ref(null)
