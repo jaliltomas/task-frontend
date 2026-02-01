@@ -2,27 +2,46 @@
   <div class="animate-fade-in">
     <!-- Filters -->
     <div class="card p-4 mb-6">
-      <div class="flex flex-wrap gap-4 items-center">
-        <div class="flex-1 min-w-[200px]">
+      <div class="flex flex-wrap gap-4 items-center justify-between">
+        <div class="flex-1 flex gap-4 items-center min-w-[200px]">
           <input
             v-model="searchQuery"
             @input="debouncedSearch"
             type="text"
             placeholder="Buscar productos..."
-            class="form-input"
+            class="form-input flex-1"
           />
+          
+          <select 
+            v-model="selectedCategory" 
+            @change="onCategoryChange"
+            class="form-input w-auto"
+          >
+            <option :value="null">Todas las categorías</option>
+            <option v-for="cat in categories" :key="cat.id" :value="cat.id">
+              {{ cat.name }}
+            </option>
+          </select>
         </div>
-        
-        <select 
-          v-model="selectedCategory" 
-          @change="onCategoryChange"
-          class="form-input w-auto"
-        >
-          <option :value="null">Todas las categorías</option>
-          <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-            {{ cat.name }}
-          </option>
-        </select>
+
+        <div class="flex items-center gap-4 border-l pl-4 border-slate-200">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium text-slate-700">Ver Snapshot</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" v-model="snapshotMode" class="sr-only peer" @change="onSnapshotModeChange">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+            </label>
+          </div>
+           
+           <div v-if="snapshotMode">
+             <input type="date" v-model="snapshotDate" class="form-input py-1.5" @change="onSnapshotDateChange">
+           </div>
+        </div>
+      </div>
+      
+      <div v-if="snapshotMode" class="mt-4 p-3 bg-purple-50 text-purple-700 text-sm rounded-lg flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <span><strong>Modo Histórico:</strong> Viendo la foto de los productos del día {{ formatDate(snapshotDate) }}. Los productos sin precios ese día no se mostrarán.</span>
       </div>
     </div>
     
@@ -212,6 +231,10 @@ const searchQuery = ref('')
 const selectedCategory = ref(null)
 const categories = ref([])
 
+// Snapshot mode
+const snapshotMode = ref(false)
+const snapshotDate = ref(new Date().toISOString().split('T')[0])
+
 // Modal state
 const showModal = ref(false)
 const selectedProduct = ref(null)
@@ -231,6 +254,20 @@ function debouncedSearch() {
 
 function onCategoryChange() {
   productsStore.setCategory(selectedCategory.value)
+}
+
+function onSnapshotModeChange() {
+  if (snapshotMode.value) {
+    productsStore.setDate(snapshotDate.value)
+  } else {
+    productsStore.setDate(null)
+  }
+}
+
+function onSnapshotDateChange() {
+  if (snapshotMode.value) {
+    productsStore.setDate(snapshotDate.value)
+  }
 }
 
 function prevPage() {

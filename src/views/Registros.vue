@@ -16,7 +16,7 @@
 
     <!-- Filters -->
     <div class="card p-4 mb-6">
-      <div class="flex flex-wrap gap-4 items-center">
+      <div class="flex flex-wrap gap-4 items-center justify-between">
         <div class="flex-1 min-w-[200px]">
           <input
             v-model="searchQuery"
@@ -25,6 +25,20 @@
             placeholder="Buscar por nombre original..."
             class="form-input"
           />
+        </div>
+        
+        <div class="flex items-center gap-4 border-l pl-4 border-slate-200">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium text-slate-700">Ver Mejores del Día</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" v-model="dailyMode" class="sr-only peer" @change="onModeChange">
+              <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+            </label>
+          </div>
+          
+          <div v-if="dailyMode">
+             <input type="date" v-model="selectedDate" class="form-input py-1.5" @change="onDateChange">
+          </div>
         </div>
       </div>
     </div>
@@ -207,6 +221,10 @@ const bulkDeleteDate = ref('')
 const bulkDeleteConfirm = ref('')
 const deletingBulk = ref(false)
 
+// Daily View state
+const dailyMode = ref(false)
+const selectedDate = ref(new Date().toISOString().split('T')[0])
+
 let searchTimeout = null
 
 const totalPages = computed(() => 
@@ -219,7 +237,11 @@ async function fetchRecords() {
     const params = {
       page: pagination.value.page,
       page_size: pagination.value.pageSize,
-      ...(searchQuery.value && { search: searchQuery.value })
+      ...(searchQuery.value && { search: searchQuery.value }),
+      ...(dailyMode.value && { 
+        date: selectedDate.value,
+        only_best: true 
+      })
     }
     const response = await axios.get(`${API_URL}/products/history/all`, { params })
     records.value = response.data.items
@@ -237,6 +259,16 @@ function debouncedSearch() {
     pagination.value.page = 1
     fetchRecords()
   }, 300)
+}
+
+function onModeChange() {
+  pagination.value.page = 1
+  fetchRecords()
+}
+
+function onDateChange() {
+  pagination.value.page = 1
+  fetchRecords()
 }
 
 function prevPage() {

@@ -19,7 +19,8 @@ export const useProductsStore = defineStore('products', () => {
   // Filters
   const filters = ref({
     search: '',
-    categoryId: null
+    categoryId: null,
+    date: null
   })
   
   // Actions
@@ -32,7 +33,8 @@ export const useProductsStore = defineStore('products', () => {
         page: pagination.value.page,
         page_size: pagination.value.pageSize,
         ...filters.value.categoryId && { category_id: filters.value.categoryId },
-        ...filters.value.search && { search: filters.value.search }
+        ...filters.value.search && { search: filters.value.search },
+        ...filters.value.date && { date: filters.value.date }
       }
       
       const response = await productsApi.list(params)
@@ -105,6 +107,20 @@ export const useProductsStore = defineStore('products', () => {
     pagination.value.page = 1
     fetchProducts()
   }
+
+  function setDate(date) {
+    filters.value.date = date
+    pagination.value.page = 1
+    fetchProducts()
+  }
+  
+  function getFilters() {
+    return {
+       ...filters.value.categoryId && { category_id: filters.value.categoryId },
+       ...filters.value.search && { search: filters.value.search },
+       ...filters.value.date && { date: filters.value.date }
+    }
+  }
   
   // Computed
   const totalPages = computed(() => 
@@ -131,6 +147,7 @@ export const useProductsStore = defineStore('products', () => {
     setPage,
     setSearch,
     setCategory,
+    setDate,
     
     // Computed
     totalPages
